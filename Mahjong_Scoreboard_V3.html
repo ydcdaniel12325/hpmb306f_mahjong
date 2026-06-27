@@ -1,0 +1,36 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Mahjong Scoreboard V3</title><style>
+body{font-family:Segoe UI,Arial;margin:20px;background:#f7f7f7} .card{background:white;padding:15px;border-radius:10px;margin-bottom:15px;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+input,select,button{padding:8px;margin:5px} table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:6px} .podium{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px} .box{padding:12px;border-radius:8px;text-align:center} .g{background:#ffd700} .s{background:#d9d9d9} .b{background:#e6b980} 
+</style></head><body>
+<h1>HK Mahjong Mini Competition - V3</h1>
+<div class='card'><h2>Student Submission</h2>
+<input id='sid' placeholder='8-digit SID'><select id='type'><option>Traditional Tiles</option><option>Mahjong Cards</option></select>
+<input id='faan' type='number' min='0' max='10' placeholder='Faan'><button onclick='submitScore()'>Submit</button><div id='msg'></div></div>
+<div class='card'><h2>Instructor Dashboard</h2><input id='pin' type='password' placeholder='Passcode'><button onclick='openDash()'>Open</button>
+<div id='dash' style='display:none'>
+<div class='podium'><div class='box s'><h3>🥈 2nd</h3><div id='second'>-</div></div><div class='box g'><h3>🥇 Champion</h3><div id='first'>-</div></div><div class='box b'><h3>🥉 3rd</h3><div id='third'>-</div></div></div>
+<h3>Statistics</h3><div id='stats'></div>
+<h3>Complete Ranking</h3>
+<button onclick='exportCSV()'>Export CSV</button>
+<button onclick='resetAll()'>Reset Competition</button>
+<table><thead><tr><th>Rank</th><th>Student</th><th>Tiles</th><th>Cards</th><th>Total</th></tr></thead><tbody id='ranking'></tbody></table>
+</div></div>
+<script>
+const students=[{sid:'13730440',name:'CHAN Chi Hin'},{sid:'13676640',name:'CHAN Yik Lam'},{sid:'13506767',name:'CHENG Cheuk Laam'},{sid:'13763170',name:'CHOW Cheuk Lim'},{sid:'13769402',name:'CHUNG Kai Lam'},{sid:'13708709',name:'FONG Chun Yu'},{sid:'13336750',name:'FUNG Kei Nam'},{sid:'13695328',name:'FUNG Yuen Hei'},{sid:'12718176',name:'HAU Chak Tai'},{sid:'13513365',name:'HO Ching Lok'},{sid:'12723150',name:'HO Ching Long'},{sid:'13717779',name:'HUANG Junyi'},{sid:'13560735',name:'HUI Lok Hin'},{sid:'13685279',name:'HUI Wai Lun'},{sid:'13662715',name:'KWOK Man Sing'},{sid:'13382428',name:'LAM Sheung Yee'},{sid:'13748781',name:'LAN Zihui'},{sid:'12954382',name:'LEE Kai Chun'},{sid:'13675354',name:'LIN Sze Ching'},{sid:'12870057',name:'NG Hei Man'},{sid:'13527437',name:'SU Chi Go'},{sid:'13514534',name:'TAM Chun Hin'},{sid:'13038746',name:'TAM Ho Yin'},{sid:'13713260',name:'TO Tak Wa'},{sid:'13720225',name:'TSANG Hing Lam'},{sid:'13514755',name:'TSANG Ka Yi'},{sid:'13751005',name:'WONG Cheuk Him'},{sid:'13797634',name:'WONG Ka Tik'},{sid:'13751447',name:'WONG Kin Fung'},{sid:'13694043',name:'WONG Tin Nok'},{sid:'13751331',name:'WONG Wai'},{sid:'13660119',name:'YAU Chun Sing'}];
+function init(){let d=JSON.parse(localStorage.getItem('mahjongV3')||'{}');students.forEach(s=>{if(!d[s.sid]) d[s.sid]={name:s.name,tiles:null,cards:null};});localStorage.setItem('mahjongV3',JSON.stringify(d));return d;}
+let data=init();
+function save(){localStorage.setItem('mahjongV3',JSON.stringify(data));}
+function mask(s){return s.substring(0,4)+'***';}
+function submitScore(){let sid=sidEl.value.trim();let type=typeEl.value;let f=parseInt(faan.value);if(!data[sid]){msg.innerText='Invalid SID';return;} if(isNaN(f)){msg.innerText='Enter a Faan score';return;} if(type==='Traditional Tiles'&&data[sid].tiles!==null){msg.innerText='Tiles score already submitted';return;} if(type==='Mahjong Cards'&&data[sid].cards!==null){msg.innerText='Cards score already submitted';return;} if(type==='Traditional Tiles') data[sid].tiles=f; else data[sid].cards=f; save(); msg.innerText='Submission successful'; render();}
+const sidEl=document.getElementById('sid'),typeEl=document.getElementById('type'),faan=document.getElementById('faan'),msg=document.getElementById('msg');
+function openDash(){if(document.getElementById('pin').value==='hpmb306f'){document.getElementById('dash').style.display='block';render();}else alert('Wrong passcode');}
+function render(){let arr=[];for(let k in data){let o=data[k];let t=(o.tiles||0)+(o.cards||0);if(t>0)arr.push([k,o,t]);} arr.sort((a,b)=>b[2]-a[2]);
+first.innerText=arr[0]?mask(arr[0][0])+' - '+arr[0][1].name+' ('+arr[0][2]+')':'-';
+second.innerText=arr[1]?mask(arr[1][0])+' - '+arr[1][1].name+' ('+arr[1][2]+')':'-';
+third.innerText=arr[2]?mask(arr[2][0])+' - '+arr[2][1].name+' ('+arr[2][2]+')':'-';
+ranking.innerHTML=arr.map((r,i)=>`<tr><td>${i+1}</td><td>${mask(r[0])} - ${r[1].name}</td><td>${r[1].tiles??'-'}</td><td>${r[1].cards??'-'}</td><td>${r[2]}</td></tr>`).join('');
+let avg=arr.length?(arr.reduce((a,b)=>a+b[2],0)/arr.length).toFixed(1):0; stats.innerHTML='Participants: '+arr.length+' | Average Faan: '+avg;}
+function exportCSV(){let rows=['Student,Tiles,Cards,Total']; for(let k in data){let o=data[k]; let t=(o.tiles||0)+(o.cards||0); if(t>0) rows.push(`${o.name},${o.tiles??''},${o.cards??''},${t}`);} let blob=new Blob([rows.join('
+')],{type:'text/csv'}); let a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='mahjong_results.csv'; a.click();}
+function resetAll(){if(confirm('Reset all results?')){localStorage.removeItem('mahjongV3'); location.reload();}}
+</script></body></html>
