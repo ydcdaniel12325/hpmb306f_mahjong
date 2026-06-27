@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mahjong Scoreboard</title>
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#ffffff; --accent:#0b5fff; --muted:#6b7280; --g:#ffd700; --s:#d9d9d9; --b:#e6b980;
+      --max-width:1100px;
+    }
+    html,body{height:100%;}
+    body{margin:0;font-family:Inter,Segoe UI,Arial,Helvetica Neue,Helvetica,sans-serif;background:var(--bg);color:#111;display:flex;justify-content:center;padding:20px}
+    .wrap{width:100%;max-width:var(--max-width)}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+    h1{font-size:28px;margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:16px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr;}}
+
+    .card{background:var(--card);padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(10,20,40,0.06)}
+    .card h2{margin:0 0 8px 0;font-size:20px}
+
+    label{display:block;font-size:14px;color:var(--muted);margin-top:8px}
+    select,input[type=number]{width:100%;padding:10px;font-size:18px;border-radius:8px;border:1px solid #e6e9ef}
+    button{padding:10px 14px;font-size:18px;border-radius:10px;border:0;background:var(--accent);color:white;cursor:pointer}
+    button.ghost{background:#eee;color:#111}
+
+    .podium{display:flex;gap:12px;align-items:end;justify-content:center;margin-bottom:12px}
+    .pod{flex:1;border-radius:10px;padding:14px;text-align:center;color:#111}
+    .pod.first{background:linear-gradient(180deg,#fff6d1,#fff1b0);font-size:20px}
+    .pod.second{background:linear-gradient(180deg,#f0f4f7,#e9eef5)}
+    .pod.third{background:linear-gradient(180deg,#f8efe2,#f6e6c9)}
+    .pod .code{font-size:26px;font-weight:700}
+    .pod .score{font-size:22px;margin-top:6px}
+
+    table{width:100%;border-collapse:collapse;font-size:16px}
+    th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+    th{background:transparent;font-weight:600}
+
+    .small{font-size:14px;color:var(--muted)}
+    .stats{display:flex;gap:12px;flex-wrap:wrap}
+    .stat{background:#fff;padding:10px;border-radius:8px;min-width:160px;text-align:center}
+    .stat .num{font-size:20px;font-weight:700}
+
+    .footer-note{margin-top:12px;font-size:13px;color:var(--muted)}
+
+    /* Large-display tweaks */
+    @media(min-width:1200px){h1{font-size:34px}.pod .code{font-size:32px}.pod .score{font-size:28px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>HK Mahjong Mini Competition — Public Leaderboard</h1>
+      <div class="controls">
+        <span class="small">Projection-friendly | Large fonts</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- Left: Submission & Leaderboard -->
+      <div>
+        <div class="card" id="submissionCard">
+          <h2>Participant Submission</h2>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+            <div style="flex:1;min-width:160px">
+              <label for="code">Participant Code</label>
+              <select id="code"></select>
+            </div>
+            <div style="flex:1;min-width:160px">
+              <label for="game">Game Type</label>
+              <select id="game"><option>Traditional Mahjong Tiles</option><option>Mahjong Cards</option></select>
+            </div>
+            <div style="width:140px">
+              <label for="faan">Faan</label>
+              <input id="faan" type="number" min="0" max="99" placeholder="0" />
+            </div>
+          </div>
+          <div style="margin-top:12px;display:flex;gap:8px">
+            <button id="submitBtn">Submit Score</button>
+            <button id="clearMsg" class="ghost">Clear</button>
+          </div>
+          <div id="publicMsg" class="small" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+          <h2>Leaderboard</h2>
+          <div class="podium" id="podium">
+            <div class="pod second"><div style="font-size:14px">🥈 2nd</div><div class="code" id="p2">-</div><div class="score" id="s2">-</div></div>
+            <div class="pod first"><div style="font-size:14px">🥇 Champion</div><div class="code" id="p1">-</div><div class="score" id="s1">-</div></div>
+            <div class="pod third"><div style="font-size:14px">🥉 3rd</div><div class="code" id="p3">-</div><div class="score" id="s3">-</div></div>
+          </div>
+
+          <div class="stats" style="margin-bottom:12px">
+            <div class="stat"><div class="small">Participants</div><div class="num" id="statCount">0</div></div>
+            <div class="stat"><div class="small">Average Total Faan</div><div class="num" id="statAvg">0</div></div>
+            <div class="stat"><div class="small">Highest Total Faan</div><div class="num" id="statMax">0</div></div>
+          </div>
+
+          <div style="overflow:auto;max-height:360px">
+            <table aria-label="Full ranking">
+              <thead><tr><th>Rank</th><th>Code</th><th>Tiles</th><th>Cards</th><th>Total</th></tr></thead>
+              <tbody id="ranking"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Instructor Dashboard -->
+      <aside>
+        <div class="card">
+          <h2>Instructor Dashboard</h2>
+          <div class="small">Enter passcode to view student names and full details.</div>
+          <label for="pin">Passcode</label>
+          <input id="pin" type="password" placeholder="Enter passcode" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="openDash">Open</button>
+            <button id="closeDash" class="ghost" style="display:none">Close</button>
+          </div>
+
+          <div id="dash" style="display:none;margin-top:12px">
+            <div style="display:flex;gap:8px;margin-bottom:8px">
+              <button id="exportBtn">Export CSV</button>
+              <button id="resetBtn" class="ghost">Reset Competition</button>
+            </div>
+            <div class="small" style="margin-bottom:8px">Instructor view: shows participant code and mapped student English name.</div>
+            <div style="overflow:auto;max-height:420px">
+              <table>
+                <thead><tr><th>Code</th><th>Student Name</th><th>Tiles</th><th>Cards</th><th>Total</th></tr></thead>
+                <tbody id="instructorTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <h2>Notes</h2>
+          <div class="small">Each participant may submit only once per game type. Scores are stored in your browser (localStorage) and persist after refresh. Passcode is required to view student names.</div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="footer-note">Built for classroom projection. GitHub Pages-ready single file.</div>
+  </div>
+
+  <script>
+    // Participant mapping (instructor-only)
+    const STUDENT_MAP = {
+      'A01':'CHAN Chi Hin','A02':'CHAN Yik Lam','A03':'CHENG Cheuk Laam','A04':'CHOW Cheuk Lim','A05':'CHUNG Kai Lam','A06':'FONG Chun Yu','A07':'FUNG Kei Nam','A08':'FUNG Yuen Hei','A09':'HAU Chak Tai','A10':'HO Ching Lok','A11':'HO Ching Long','A12':'HUANG Junyi','A13':'HUI Lok Hin','A14':'HUI Wai Lun','A15':'KWOK Man Sing','A16':'LAM Sheung Yee','A17':'LAN Zihui','A18':'LEE Kai Chun','A19':'LIN Sze Ching','A20':'NG Hei Man','A21':'SU Chi Go','A22':'TAM Chun Hin','A23':'TAM Ho Yin','A24':'TO Tak Wa','A25':'TSANG Hing Lam','A26':'TSANG Ka Yi','A27':'WONG Cheuk Him','A28':'WONG Ka Tik','A29':'WONG Kin Fung','A30':'WONG Tin Nok','A31':'WONG Wai','A32':'YAU Chun Sing'
+    };
+
+    const CODES = Object.keys(STUDENT_MAP);
+    const STORAGE_KEY = 'mahjong_competition_v1';
+    const PASSCODE = 'hpmb306f';
+
+    // DOM refs
+    const codeEl = document.getElementById('code');
+    const gameEl = document.getElementById('game');
+    const faanEl = document.getElementById('faan');
+    const submitBtn = document.getElementById('submitBtn');
+    const clearMsgBtn = document.getElementById('clearMsg');
+    const publicMsg = document.getElementById('publicMsg');
+    const p1 = document.getElementById('p1'),p2=document.getElementById('p2'),p3=document.getElementById('p3');
+    const s1=document.getElementById('s1'),s2=document.getElementById('s2'),s3=document.getElementById('s3');
+    const rankingTbody = document.getElementById('ranking');
+    const statCount = document.getElementById('statCount'), statAvg = document.getElementById('statAvg'), statMax = document.getElementById('statMax');
+    const pinEl = document.getElementById('pin'), openDashBtn = document.getElementById('openDash'), closeDashBtn = document.getElementById('closeDash');
+    const dash = document.getElementById('dash'), instructorTable = document.getElementById('instructorTable');
+    const exportBtn = document.getElementById('exportBtn'), resetBtn = document.getElementById('resetBtn');
+
+    // Initialize UI
+    function initUI(){
+      // populate codes
+      codeEl.innerHTML = CODES.map(c => `<option value="${c}">${c}</option>`).join('');
+      // load data
+      data = loadData();
+      renderAll();
+    }
+
+    // Data format: { A01: {tiles: number|null, cards: number|null}, A02: {...} }
+    function loadData(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){
+          const parsed = JSON.parse(raw);
+          // ensure all codes exist
+          CODES.forEach(c => { if(!parsed[c]) parsed[c] = {tiles:null,cards:null}; });
+          return parsed;
+        }
+      }catch(e){console.error(e)}
+      // initialize
+      const init = {};
+      CODES.forEach(c => init[c] = {tiles:null,cards:null});
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(init));
+      return init;
+    }
+
+    function saveData(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+    // Globals
+    let data = loadData();
+
+    function submitScore(){
+      const code = codeEl.value;
+      const game = gameEl.value;
+      const faan = parseInt(faanEl.value,10);
+      if(!CODES.includes(code)){ showPublicMsg('Invalid participant code',true); return; }
+      if(isNaN(faan) || faan<0){ showPublicMsg('Enter a valid Faan score',true); return; }
+      const key = game.startsWith('Traditional') ? 'tiles' : 'cards';
+      if(data[code][key] !== null){ showPublicMsg(`${game} score already submitted for ${code}`,true); return; }
+      data[code][key] = faan;
+      saveData();
+      faanEl.value = '';
+      showPublicMsg('Submission successful',false);
+      renderAll();
+    }
+
+    function showPublicMsg(text, isError){ publicMsg.textContent = text; publicMsg.style.color = isError ? '#b91c1c' : '#0b5fff'; }
+
+    function clearMsg(){ publicMsg.textContent = ''; }
+
+    function computeRanking(){
+      const arr = CODES.map(code => {
+        const tiles = data[code].tiles ?? 0;
+        const cards = data[code].cards ?? 0;
+        const total = (data[code].tiles||0) + (data[code].cards||0);
+        return {code,tiles: data[code].tiles, cards: data[code].cards, total};
+      }).filter(r => r.total>0);
+      arr.sort((a,b) => b.total - a.total || (b.tiles - a.tiles));
+      return arr;
+    }
+
+    function renderPodium(arr){
+      p1.textContent = arr[0]?arr[0].code:'-'; s1.textContent = arr[0]?arr[0].total:'-';
+      p2.textContent = arr[1]?arr[1].code:'-'; s2.textContent = arr[1]?arr[1].total:'-';
+      p3.textContent = arr[2]?arr[2].code:'-'; s3.textContent = arr[2]?arr[2].total:'-';
+    }
+
+    function renderRankingTable(arr){
+      rankingTbody.innerHTML = arr.map((r,i) => `
+        <tr>
+          <td>${i+1}</td>
+          <td>${r.code}</td>
+          <td>${r.tiles===null?'-':r.tiles}</td>
+          <td>${r.cards===null?'-':r.cards}</td>
+          <td>${r.total}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderStats(arr){
+      const count = arr.length;
+      const avg = count ? (arr.reduce((s,x)=>s+x.total,0)/count).toFixed(1) : 0;
+      const mx = count ? Math.max(...arr.map(x=>x.total)) : 0;
+      statCount.textContent = count;
+      statAvg.textContent = avg;
+      statMax.textContent = mx;
+    }
+
+    function renderInstructorTable(){
+      // show all codes with names and values
+      instructorTable.innerHTML = CODES.map(code => {
+        const obj = data[code];
+        const total = (obj.tiles||0)+(obj.cards||0);
+        return `<tr><td>${code}</td><td>${STUDENT_MAP[code] || ''}</td><td>${obj.tiles===null?'-':obj.tiles}</td><td>${obj.cards===null?'-':obj.cards}</td><td>${total}</td></tr>`;
+      }).join('');
+    }
+
+    function renderAll(){
+      const arr = computeRanking();
+      renderPodium(arr);
+      renderRankingTable(arr);
+      renderStats(arr);
+      if(dash.style.display !== 'none') renderInstructorTable();
+    }
+
+    // Export CSV - if instructor view open include student names, otherwise anonymous
+    function exportCSV(){
+      const includeNames = dash.style.display !== 'none';
+      const rows = [];
+      if(includeNames) rows.push(['Code','Student Name','Tiles','Cards','Total']);
+      else rows.push(['Rank','Code','Tiles','Cards','Total']);
+      const arr = computeRanking();
+      if(includeNames){
+        // include all codes (show zeros as blanks)
+        CODES.forEach(code => {
+          const obj = data[code];
+          const total = (obj.tiles||0)+(obj.cards||0);
+          rows.push([code, STUDENT_MAP[code] || '', obj.tiles===null?'':obj.tiles, obj.cards===null?'':obj.cards, total]);
+        });
+      } else {
+        arr.forEach((r,i)=> rows.push([i+1, r.code, r.tiles===null?'':r.tiles, r.cards===null?'':r.cards, r.total]));
+      }
+      const csv = rows.map(r => r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = includeNames ? 'mahjong_results_with_names.csv' : 'mahjong_results.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }
+
+    function resetCompetition(){
+      if(!confirm('Reset all results? This will clear stored scores in this browser.')) return;
+      CODES.forEach(c => data[c] = {tiles:null,cards:null});
+      saveData();
+      renderAll();
+      showPublicMsg('Competition reset',false);
+    }
+
+    // Instructor dashboard open/close
+    function openDashboard(){
+      if(pinEl.value === PASSCODE){
+        dash.style.display = 'block';
+        closeDashBtn.style.display = 'inline-block';
+        openDashBtn.style.display = 'none';
+        renderInstructorTable();
+      } else { alert('Wrong passcode'); }
+    }
+    function closeDashboard(){ dash.style.display='none'; closeDashBtn.style.display='none'; openDashBtn.style.display='inline-block'; pinEl.value=''; }
+
+    // Event listeners
+    submitBtn.addEventListener('click', submitScore);
+    clearMsgBtn.addEventListener('click', clearMsg);
+    openDashBtn.addEventListener('click', openDashboard);
+    closeDashBtn.addEventListener('click', closeDashboard);
+    exportBtn.addEventListener('click', exportCSV);
+    resetBtn.addEventListener('click', resetCompetition);
+
+    // Live update: observe localStorage changes from other tabs
+    window.addEventListener('storage', (e)=>{
+      if(e.key === STORAGE_KEY){ data = loadData(); renderAll(); }
+    });
+
+    // initial
+    initUI();
+  </script>
+</body>
+</html>
