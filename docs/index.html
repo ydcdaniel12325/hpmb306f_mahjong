@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>To‑Do List (LocalStorage)</title>
+  <style>
+    :root{
+      --bg:#f5f7fb; --card:#fff; --accent:#0b5fff; --muted:#6b7280;
+      --success:#16a34a; --danger:#ef4444; --max:900px;
+    }
+    html,body{height:100%}
+    body{
+      margin:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;
+      background:linear-gradient(180deg,#f8fbff 0%,var(--bg) 100%);
+      display:flex;align-items:flex-start;justify-content:center;padding:28px;
+      color:#0f172a;
+    }
+    .app{width:100%;max-width:var(--max)}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+    h1{font-size:22px;margin:0}
+    .card{background:var(--card);padding:16px;border-radius:12px;box-shadow:0 8px 24px rgba(12,20,40,0.06)}
+    .add-row{display:flex;gap:8px;align-items:center}
+    input[type="text"], input[type="date"], select{
+      padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:16px;flex:1;
+    }
+    button{background:var(--accent);color:#fff;border:0;padding:10px 12px;border-radius:8px;font-size:16px;cursor:pointer}
+    button.ghost{background:#eef2ff;color:var(--accent);border:1px solid #dbeafe}
+    .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .meta{margin-top:8px;color:var(--muted);font-size:14px}
+    .list{margin-top:14px}
+    ul{list-style:none;padding:0;margin:0}
+    li{display:flex;align-items:center;gap:10px;padding:10px;border-radius:8px;border:1px solid #f1f5f9;background:#fff;margin-bottom:8px}
+    .li-left{display:flex;align-items:center;gap:10px;flex:1}
+    .task-text{font-size:16px}
+    .task-text.done{text-decoration:line-through;color:var(--muted)}
+    .badge{padding:6px 8px;border-radius:6px;font-size:13px;background:#f1f5f9;color:#0f172a}
+    .actions{display:flex;gap:8px}
+    .small{font-size:13px;color:var(--muted)}
+    .filters{display:flex;gap:6px}
+    .filters button{background:transparent;color:var(--muted);border:1px solid transparent;padding:8px;border-radius:8px}
+    .filters button.active{border-color:#e6e9ef;background:#f8fafc;color:var(--accent)}
+    .footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:12px;flex-wrap:wrap}
+    .import-input{display:none}
+    @media (max-width:680px){ h1{font-size:18px} input[type="text"]{font-size:15px} button{font-size:15px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>To‑Do List — LocalStorage</h1>
+      <div class="small">Offline-ready • Saves in your browser</div>
+    </header>
+
+    <section class="card" aria-labelledby="add-heading">
+      <h2 id="add-heading" style="margin:0 0 10px 0;font-size:18px">Add Task</h2>
+      <div class="add-row">
+        <input id="taskInput" type="text" placeholder="What needs to be done?" aria-label="New task" />
+        <input id="dueInput" type="date" aria-label="Due date" />
+        <select id="prioInput" aria-label="Priority">
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="low">Low</option>
+        </select>
+        <button id="addBtn">Add</button>
+        <button id="clearAllBtn" class="ghost" title="Clear all tasks">Clear All</button>
+      </div>
+      <div class="meta" id="metaLine">0 tasks • 0 active • 0 completed</div>
+    </section>
+
+    <section class="card list" aria-labelledby="list-heading">
+      <h2 id="list-heading" style="margin:0 0 10px 0;font-size:18px">Tasks</h2>
+
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <div class="controls" style="flex:1">
+          <div class="filters" role="tablist" aria-label="Filter tasks">
+            <button class="filterBtn active" data-filter="all">All</button>
+            <button class="filterBtn" data-filter="active">Active</button>
+            <button class="filterBtn" data-filter="completed">Completed</button>
+          </div>
+          <input id="search" type="text" placeholder="Search tasks..." style="padding:10px;border-radius:8px;border:1px solid #e6e9ef;font-size:15px;margin-left:8px" />
+        </div>
+
+        <div style="display:flex;gap:8px">
+          <button id="exportBtn" class="ghost">Export JSON</button>
+          <label class="ghost" style="padding:10px;border-radius:8px;cursor:pointer">
+            Import
+            <input id="importFile" class="import-input" type="file" accept="application/json" />
+          </label>
+        </div>
+      </div>
+
+      <ul id="taskList" style="margin-top:12px" aria-live="polite"></ul>
+
+      <div class="footer">
+        <div class="small" id="footerLeft">Tip: Click task text to edit inline. Use checkbox to mark complete.</div>
+        <div style="display:flex;gap:8px">
+          <button id="clearCompleted" class="ghost">Clear Completed</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // Local storage key
+    const KEY = 'todo_app_v1';
+
+    // State
+    let tasks = []; // {id, text, due, priority, done, createdAt, updatedAt}
+
+    // Elements
+    const taskInput = document.getElementById('taskInput');
+    const dueInput = document.getElementById('dueInput');
+    const prioInput = document.getElementById('prioInput');
+    const addBtn = document.getElementById('addBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const taskList = document.getElementById('taskList');
+    const metaLine = document.getElementById('metaLine');
+    const filterBtns = document.querySelectorAll('.filterBtn');
+    const searchEl = document.getElementById('search');
+    const exportBtn = document.getElementById('exportBtn');
+    const importFile = document.getElementById('importFile');
+    const clearCompletedBtn = document.getElementById('clearCompleted');
+
+    // Utils
+    const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) tasks = JSON.parse(raw);
+        else tasks = [];
+      } catch (e) {
+        console.error('Failed to load tasks', e);
+        tasks = [];
+      }
+    }
+
+    function save() {
+      localStorage.setItem(KEY, JSON.stringify(tasks));
+    }
+
+    // Rendering
+    function render() {
+      const filter = document.querySelector('.filterBtn.active')?.dataset.filter || 'all';
+      const query = searchEl.value.trim().toLowerCase();
+      const visible = tasks
+        .slice()
+        .filter(t => {
+          if (filter === 'active') return !t.done;
+          if (filter === 'completed') return !!t.done;
+          return true;
+        })
+        .filter(t => {
+          if (!query) return true;
+          return t.text.toLowerCase().includes(query) || (t.due || '').includes(query);
+        })
+        .sort((a,b) => {
+          // undone first, then by due date, then by priority
+          if (a.done !== b.done) return a.done ? 1 : -1;
+          if (a.due && b.due) {
+            if (a.due !== b.due) return a.due < b.due ? -1 : 1;
+          } else if (a.due || b.due) {
+            return a.due ? -1 : 1;
+          }
+          const prioOrder = {high:0, normal:1, low:2};
+          if (prioOrder[a.priority] !== prioOrder[b.priority]) return prioOrder[a.priority] - prioOrder[b.priority];
+          return b.updatedAt - a.updatedAt;
+        });
+
+      taskList.innerHTML = visible.map(taskToHTML).join('') || '<li class="small">No tasks yet</li>';
+      updateMeta();
+      attachRowListeners();
+    }
+
+    function taskToHTML(t) {
+      const dueLabel = t.due ? `<div class="badge" title="Due date">${t.due}</div>` : '';
+      const prioLabel = t.priority && t.priority !== 'normal' ? `<div class="badge" title="Priority">${t.priority}</div>` : '';
+      const textClass = 'task-text' + (t.done ? ' done' : '');
+      return `
+        <li data-id="${t.id}">
+          <div class="li-left">
+            <input type="checkbox" class="chk" ${t.done ? 'checked' : ''} aria-label="Mark task complete" />
+            <div style="display:flex;flex-direction:column;min-width:0">
+              <div class="${textClass}" contenteditable="true" spellcheck="false" role="textbox" aria-label="Edit task">${escapeHtml(t.text)}</div>
+              <div class="small" style="margin-top:6px;display:flex;gap:6px;align-items:center">
+                ${dueLabel} ${prioLabel}
+                <div style="color:var(--muted)">Created: ${new Date(t.createdAt).toLocaleString()}</div>
+              </div>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="ghost edit-btn" title="Edit">Edit</button>
+            <button class="ghost del-btn" title="Delete" style="color:var(--danger)">Delete</button>
+          </div>
+        </li>
+      `;
+    }
+
+    function escapeHtml(text) {
+      return text.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    }
+
+    // Interaction handlers
+    function addTask() {
+      const text = taskInput.value.trim();
+      if (!text) {
+        taskInput.focus();
+        return;
+      }
+      const newTask = {
+        id: uid(),
+        text,
+        due: dueInput.value || null,
+        priority: prioInput.value || 'normal',
+        done: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      tasks.push(newTask);
+      save();
+      render();
+      taskInput.value = '';
+      dueInput.value = '';
+      prioInput.value = 'normal';
+      taskInput.focus();
+    }
+
+    function attachRowListeners() {
+      document.querySelectorAll('#taskList li').forEach(li => {
+        const id = li.dataset.id;
+        const chk = li.querySelector('.chk');
+        const del = li.querySelector('.del-btn');
+        const textDiv = li.querySelector('.task-text');
+        const editBtn = li.querySelector('.edit-btn');
+
+        chk?.addEventListener('change', () => {
+          toggleDone(id, chk.checked);
+        }, { once: false });
+
+        del?.addEventListener('click', () => {
+          deleteTask(id);
+        });
+
+        // Inline editing: save on blur or Enter
+        textDiv?.addEventListener('blur', () => {
+          const newText = textDiv.textContent.trim();
+          updateText(id, newText);
+        });
+
+        textDiv?.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            textDiv.blur();
+          }
+        });
+
+        editBtn?.addEventListener('click', () => {
+          textDiv.focus();
+          // move cursor to end
+          const range = document.createRange();
+          const sel = window.getSelection();
+          range.selectNodeContents(textDiv);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        });
+      });
+    }
+
+    function toggleDone(id, done) {
+      const t = tasks.find(x => x.id === id);
+      if (!t) return;
+      t.done = done;
+      t.updatedAt = Date.now();
+      save();
+      render();
+    }
+
+    function deleteTask(id) {
+      if (!confirm('Delete this task?')) return;
+      tasks = tasks.filter(x => x.id !== id);
+      save();
+      render();
+    }
+
+    function updateText(id, newText) {
+      const t = tasks.find(x => x.id === id);
+      if (!t) return;
+      if (!newText) {
+        // if emptied, delete
+        if (confirm('Task is empty — delete it?')) {
+          deleteTask(id);
+        } else {
+          render(); // revert
+        }
+        return;
+      }
+      t.text = newText;
+      t.updatedAt = Date.now();
+      save();
+      render();
+    }
+
+    function updateMeta() {
+      const total = tasks.length;
+      const completed = tasks.filter(t => t.done).length;
+      const active = total - completed;
+      metaLine.textContent = `${total} task${total !== 1 ? 's' : ''} • ${active} active • ${completed} completed`;
+    }
+
+    // Filters
+    filterBtns.forEach(btn => btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      render();
+    }));
+
+    searchEl.addEventListener('input', () => {
+      render();
+    });
+
+    // Export / Import
+    exportBtn.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(tasks, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'todo_export.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    importFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result);
+          if (!Array.isArray(parsed)) throw new Error('Invalid file format');
+          // basic validation
+          const valid = parsed.every(p => p.id && p.text);
+          if (!valid) throw new Error('Invalid task objects');
+          if (!confirm('Import will replace existing tasks in this browser. Continue?')) return;
+          tasks = parsed.map(p => ({
+            id: p.id,
+            text: String(p.text),
+            due: p.due || null,
+            priority: p.priority || 'normal',
+            done: !!p.done,
+            createdAt: p.createdAt || Date.now(),
+            updatedAt: p.updatedAt || Date.now()
+          }));
+          save();
+          render();
+          alert('Import successful');
+        } catch (err) {
+          alert('Failed to import: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+      // reset input so same file can be re-selected later
+      e.target.value = '';
+    });
+
+    // Clear completed / all
+    clearCompletedBtn.addEventListener('click', () => {
+      const hasCompleted = tasks.some(t => t.done);
+      if (!hasCompleted) { alert('No completed tasks to clear'); return; }
+      if (!confirm('Clear all completed tasks?')) return;
+      tasks = tasks.filter(t => !t.done);
+      save();
+      render();
+    });
+
+    clearAllBtn.addEventListener('click', () => {
+      if (!tasks.length) { alert('No tasks to clear'); return; }
+      if (!confirm('Clear ALL tasks? This cannot be undone.')) return;
+      tasks = [];
+      save();
+      render();
+    });
+
+    // Keyboard shortcuts
+    taskInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addTask();
+    });
+    addBtn.addEventListener('click', addTask);
+
+    // Listen to storage events (multi-tab)
+    window.addEventListener('storage', (e) => {
+      if (e.key === KEY) {
+        load();
+        render();
+      }
+    });
+
+    // init
+    load();
+    render();
+  </script>
+</body>
+</html>
